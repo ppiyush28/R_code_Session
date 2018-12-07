@@ -1,0 +1,361 @@
+---
+title: "DecisionTree Example2-28may"
+author: "Abhijeet Kelkar"
+date: "May 28, 2018"
+output: html_document
+---
+
+
+##Decision Trees Practice-2 28th may
+
+This is the first learning and practice document for Decision Trees.   
+
+Last Update date : 28th May 2018 
+
+Reading directly from website 
+```{r }
+path <- 'https://raw.githubusercontent.com/thomaspernet/data_csv_r/master/data/titanic_csv.csv'
+titanic <- read.csv(path)
+```
+**Some exploratory analysis**
+
+```{r}
+summary(titanic)
+```
+```{r}
+str(titanic)
+```
+
+
+```{r}
+head(titanic,15)
+```
+
+
+
+From the head and tail output, you can notice the data is not shuffled. This is a big issue! When you will split your data between a train set and test set, you will select only the passenger from class 1 and 2 (No passenger from class 3 are in the top 80 percent of the observations), which means the algorithm will never see the features of passenger of class 3. This mistake will lead to poor prediction.   
+
+To overcome this issue, you can use the function sample().
+
+```{r}
+set.seed(678)
+shuffle_indx <- sample(1:nrow(titanic))
+#Generate a random list of index from 1 to 1309 (i.e. the maximum number of rows).
+head(shuffle_indx)
+```
+
+
+we will use this shufleIndex vector hhaving randmly arranged row numbers to shuffle up the titanic dataset value   
+
+```{r}
+titanic <- titanic[shuffle_indx,]
+head(titanic)
+library(Amelia)
+missmap(titanic)
+```
+
+**Step 2)** Clean the dataset   
+
+The structure of the data shows some variables have NA's. Data clean up to be done as follows   
+
+Drop the variables which are having nominal information. Like Name of pasnger, his ticket id, his compartment etc.. Also, the X column, ( having row number of rows)   
+
+Do this with **And then** command ! which does this in effcient way !
+
+```{r}
+library(dplyr)
+
+clean_titanic <- titanic %>% 
+                select(-c(home.dest,cabin,ticket,X,name))  %>% 
+                mutate(pclass=factor(pclass, levels = c(1,2,3),labels=c("Upper","Middle","Lower")),
+                       survived=factor(survived,levels=c(0,1), labels=c('No','Yes')))  %>%
+                  na.omit()
+                
+# select(-c(home.dest, cabin, name, X, ticket)): Drop unnecessary variables
+# pclass = factor(pclass, levels = c(1,2,3), labels= c('Upper', 'Middle', 'Lower')): Add label to the variable pclass. 1 becomes Upper, 2 becomes MIddle and 3 becomes lower
+# factor(survived, levels = c(0,1), labels = c('No', 'Yes')): Add label to the variable survived. 1 Becomes No and 2 becomes Yes
+# na.omit(): Remove the NA observations
+glimpse(clean_titanic)
+```
+
+
+
+**Step 3)** create train and test set    
+
+Before you train your model, you need to perform two steps:
+
+Create a train and test set: You train the model on the train set and test the prediction on the test set (i.e. unseen data)
+Install rpart.plot from the console
+The common practice is to split the data 80/20, 80 percent of the data serves to train the model, and 20 percent to make predictions. You need to create two separate data frames. You don't want to touch the test set until you finish building your model. You can create a function name create_train_test() that takes three arguments.   
+
+create_train_test(df, size = 0.8, train = TRUE)
+arguments:
+-df: Dataset used to train the model.
+-size: Size of the split. By default, 0.8. Numerical value
+-train: If set to `TRUE`, the function creates the train set, otherwise the test set. Default value sets to `TRUE`. Boolean value.You need to add a Boolean parameter because R does not allow to return two data frames simultaneously.    
+
+
+```{r}
+in_data <-clean_titanic
+create_test_train <- function(in_data, size=0.8, train=TRUE){
+    noOfRows = nrow(in_data)
+    op_rows <- size * noOfRows
+    op_train <- 1:op_rows
+    if (train == TRUE) {
+      return (in_data[op_train,])
+    }else{
+      return (in_data[-op_train,])
+    }
+    
+}
+sample_Train <- create_test_train(in_data = clean_titanic,train = TRUE)
+sample_Test <- create_test_train(in_data = clean_titanic,train = FALSE)
+dim(sample_Train) #[1] 836   8
+#write.csv(sample_Train,file="D:\\LEARNINGS @ TCS\\Imarticus Class Learning\\Built in Sample datasets From R\\titanic_sample_Train.csv",row.names=TRUE)
+dim(sample_Test)  #[1] 209   8
+```
+
+
+The train dataset has 1046 rows while the test dataset has 262 rows.     
+
+Use the prop.table and table functions to ensure the split has not changed the randomization. I.e. even after 80:20 split, the data in both have almost equal percetage of survived and died passengers     
+
+```{r}
+#prop.table(m) # >> The values in each cell divided by the sum of the all cells. m is a simple 2*2 matirx for example having 1,2,3,4 values arrnaged vertically columnwise
+#prop.table(m,1) >>The value of each cell divided by the sum of the row cells:
+#prop.table(m,2) >>The value of each cell divided by the sum of the column cells:
+
+#sample_Train$survived
+ktr<- table(sample_Train$survived)
+ktr
+prop.table(ktr)
+#        No       Yes 
+# 0.5944976 0.4055024 
+#prop.table(table(sample_Train$survived))
+#sample_Test$survived
+k<- table(sample_Test$survived)
+k
+prop.table(k)
+#prop.table(table(sample_Test$survived))
+#        No       Yes 
+# 0.5789474 0.4210526 
+
+```
+
+
+
+**Install rpart.plot for plotting the decision trees**       
+
+```{r}
+#install.packages("rpart.plot")
+```
+
+
+** Build the model**  
+
+You are ready to build the model. The syntax for Rpart() function is:
+rpart(formula, data=, method='')
+arguments:			
+- formula: The function to predict
+- data: Specifies the data frame- method: 			
+- "class" for a classification tree 			
+- "anova" for a regression tree	  
+
+Here: You use the class method because you predict a class.
+
+
+```{r}
+
+library(rpart)
+library(rpart.plot)
+model  <- rpart(sample_Train$survived ~., data=sample_Train, method="class")
+
+rpart.plot(model, extra=101)
+```
+
+ 
+ 
+ I have tried to analyse the data shown through excel pivot. Take a look at the screen shot of that below  
+ 
+![Pivot table to see data](D:\LEARNINGS @ TCS\Imarticus Class Learning\Titanic Decision Tree Result StudyViaPivot Table.png)
+
+
+
+Note that, one of the many qualities of Decision Trees is that they require very little data preparation. In particular, they don't require feature scaling or centering.
+
+By default, rpart() function uses the Gini impurity measure to split the note. The higher the Gini coefficient, the more different instances within the node.   
+
+
+**Step 5)** Make a prediction   
+
+You can predict your test dataset. To make a prediction, you can use the predict() function. The basic syntax of predict for decision trees is:
+
+predict(fitted_model, df, type = 'class')
+arguments:
+- fitted_model: This is the object stored after model estimation. 
+- df: Data frame used to make the prediction
+- type: Type of prediction			
+    - 'class': for classification			
+    - 'prob': to compute the probability of each class			
+    - 'vector': Predict the mean response at the node level	
+    
+    
+    
+You want to predict which passengers are more likely to survive after the collision from the test set. It means, you will know among those 209 passengers, which one will survive or not.
+```{r}
+predict_ontestdata <- predict(model,sample_Test,type= "class") 
+# Code Explanation
+# predict(fit, data_test, type = 'class'): Predict the class (0/1) of the test set
+
+
+# predict_ontestdata this is a simple vector having YE no values( survived or no) for the test dataset
+
+```
+
+
+
+Testing the passenger who didn't survive and those who did.
+
+```{r}
+
+tab_matrix<-table(sample_Test$survived,predict_ontestdata)
+tab_matrix
+
+```
+
+
+
+The model correctly predicted 106 dead passengers but classified 15 dead as survivers. By analogy, the model misclassified 30 passengers as dead while they survived.   
+
+
+**Step 6)** Measure performance
+
+You can compute an accuracy measure for classification task with the confusion matrix:
+
+The confusion matrix is a better choice to evaluate the classification performance. The general idea is to count the number of times True instances are classified are False.    
+
+Each row in a confusion matrix represents an actual target, while each column represents a predicted target. The first row of this matrix considers dead passengers (the False class): 106 were correctly classified as dead (True negative), while the remaining one was wrongly classified as a survivor (False positive). The second row considers the survivors, the positive class were 58 (True positive), while the True negative was 30.
+
+You can compute the accuracy test from the confusion matrix:
+It is the proportion of true positive and true negative over the sum of the matrix. With R, you can code as follow:
+
+```{r}
+accuracy_test <- sum(diag(tab_matrix))/ sum(tab_matrix)
+accuracy_test
+```
+
+We see that, accuracy is 78 %
+
+**Step 7)** Tune the hyper-parameters
+
+Decision tree has various parameters that control aspects of the fit. In rpart library, you can control the parameters using the rpart.control() function. In the following code, you introduce the parameters you will tune.
+
+rpart.control(minsplit = 20, minbucket = round(minsplit/3), maxdepth = 30)
+Arguments:
+-minsplit: Set the minimum number of observations in the node before the algorithm perform a split
+-minbucket:  Set the minimum number of observations in the final note i.e. the leaf
+-maxdepth: Set the maximum depth of any node of the final tree. The root node is treated a depth 0
+
+
+We will proceed as follow:
+
+Construct function to return accuracy
+-Tune the maximum depth
+-Tune the minimum number of sample a node must have before it can split
+-Tune the minimum number of sample a leaf node must have
+
+
+You can write a function to display the accuracy. You simply wrap the code you used before:
+
+predict: predict_unseen <- predict(fit, data_test, type = 'class')
+Produce table: table_mat <- table(data_test$survived, predict_unseen)
+Compute accuracy: accuracy_Test <- sum(diag(table_mat))/sum(table_mat)
+
+![Pivot table to see data](D:\LEARNINGS @ TCS\Imarticus Class Learning\DecisionTrees_perfMeasures_1.png)
+
+![Pivot table to see data](D:\LEARNINGS @ TCS\Imarticus Class Learning\DecisionTrees_perfMeasures_2.png)
+
+```{r}
+#summary(model)
+GetPerf_Params_ByTuning <- function(model){
+  
+  predict_test <-predict(model,sample_Test,type="class")
+  tbl_mat <- table(sample_Test$survived, predict_test)
+  accurcy <- sum(diag(tbl_mat))/sum(tbl_mat)
+  sensitivity <- tbl_mat[1,1]/sum(tbl_mat[,1])
+  specificity <- tbl_mat[2,2]/sum(tbl_mat[,2])
+  
+ 
+  False_neg_rate <- 1- sensitivity
+  False_pos_rate <- 1- specificity
+  
+  my_list <- list("accurcy" = accurcy, "sensitivity" = sensitivity, "specificity" = specificity,
+                  "False_neg_rate"=False_neg_rate,"False_pos_rate"=False_pos_rate)
+  return (my_list)
+}
+```
+
+You can try to tune the parameters and see if you can improve the model over the default value. As a reminder, you need to get an accuracy higher than 0.78
+
+
+```{r}
+
+
+
+control <- rpart.control(minsplit = 4,minbucket = round(5/3),maxdepth = 3,cp=0)
+model1<- rpart(survived~., data=sample_Train, method ="class",control=control)
+ GetPerf_Params_ByTuning(model1)
+
+minsplit  <- seq(2,6,1)
+minbucket <- seq(0.5,2.5,0.5)
+maxdepth  <- seq(2,6,1)
+variable_value_set <- data.frame(minsplit,minbucket,maxdepth) 
+result <- data.frame(accurcy=numeric(0),sensitivity=numeric(0),specificity=numeric(0),
+                    False_neg_rate=numeric(0),False_pos_rate=numeric(0))
+#class(result)
+str( result)
+#colnames(result) <- c("accurcy", "sensitivity","specificity",
+ #                    "False_neg_rate","False_pos_rate")
+result
+nrow(variable_value_set)
+names(result)
+for (variable in 1:nrow(variable_value_set)) {
+
+   # print(variable_value_set[variable,1])
+   # print(variable_value_set[variable,2])
+   # print(variable_value_set[variable,3])
+  control <- rpart.control(minsplit  =  variable_value_set[variable,1],
+                           minbucket =  variable_value_set[variable,2],
+                           maxdepth  =  variable_value_set[variable,3],cp=0)
+  model1<- rpart(survived~., data=sample_Train, method ="class",control=control)
+  res <- GetPerf_Params_ByTuning(model1)
+
+df <- as.data.frame(res)
+result <-rbind(result, df)
+rm(df)
+}
+
+plotdataset <- cbind(result$accurcy,variable_value_set$minsplit,variable_value_set$minbucket,variable_value_set$maxdepth)
+plotdataset <- as.data.frame(plotdataset)
+colnames(plotdataset) <- c("Accuracy","minsplit","minbucket","maxdepth")
+plotdataset
+#install.packages("plotly")
+library(plotly)
+plot_ly(plotdataset, x = ~minsplit, y = ~minbucket, z = ~Accuracy, type = 'scatter3d', mode = 'lines',
+        opacity = 1, line = list(width = 6, reverscale = FALSE))
+```
+
+
+**changing the parameters**   
+
+```{r}
+plot_ly(plotdataset, x = ~minsplit, y = ~maxdepth, z = ~Accuracy, type = 'scatter3d', mode = 'lines',
+        opacity = 1, line = list(width = 6, reverscale = FALSE))
+```
+
+
+
+
+
+
+

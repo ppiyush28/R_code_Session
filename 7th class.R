@@ -1,0 +1,10 @@
+install.packages("car")
+library("car")
+library(grid)
+str(Prestige)
+data(Prestige)
+head(prestige)
+newdata <- Prestige[,c(1:4)]
+summary(Prestige)
+plot(newdata,pch=16,col="blue")
+set.seed(1)
